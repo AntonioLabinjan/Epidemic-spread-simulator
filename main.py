@@ -20,7 +20,6 @@ QUARANTINE_RADIUS = 0.1
 QUARANTINE_SPEED_FACTOR = 0.02   # karantena je spora, ali ne mrtva, ipak se kreću ka “sigurnom mjestu”
 
 
-# Agent states
 SUSCEPTIBLE, INFECTED, RECOVERED, DEAD, QUARANTINED = 0, 1, 2, 3, 4
 STATE_COLORS = {
     SUSCEPTIBLE: 'blue',
@@ -37,29 +36,24 @@ class Agent:
         self.state = SUSCEPTIBLE
         self.infection_timer = 0
         self.is_super_spreader = False
-        self.speed_factor = 1.0  # umor smanjuje speed, počinje na 1
+        self.speed_factor = 1.0  
 
     def move(self):
         if self.state == DEAD:
             return
         if self.state == QUARANTINED:
-            # Agent se sporo kreće prema karanteni unutar radijusa
             direction = QUARANTINE_POS - self.pos
             dist = np.linalg.norm(direction)
             if dist > QUARANTINE_RADIUS:
-                direction = direction / dist  # unit vector
-                self.pos += direction * 0.005  # sporo prema karanteni
-            # dodaj mali šum za realističnost
+                direction = direction / dist 
+                self.pos += direction * 0.005
             self.pos += (np.random.rand(2) - 0.5) * 0.001
             return
         
-        # normalno kretanje s umorom
         self.pos += self.vel * self.speed_factor
-        # odbijanje od zidova
         for i in [0, 1]:
             if self.pos[i] < 0 or self.pos[i] > 1:
                 self.vel[i] *= -1
-        # dodaj šum u poziciju
         self.pos += (np.random.rand(2) - 0.5) * 0.001
         self.pos = np.clip(self.pos, 0, 1)
 
@@ -67,7 +61,6 @@ class Agent:
         if self.state == SUSCEPTIBLE:
             self.state = INFECTED
             self.infection_timer = RECOVERY_TIME
-            # 10% šansa da je super širitelj (širi virus dalje i jače)
             self.is_super_spreader = (random.random() < 0.1)
 
     def update(self):
@@ -76,12 +69,10 @@ class Agent:
             return
 
         if self.state == INFECTED:
-            # s vremenom infekcije, umor raste pa se kreće sporije
             self.speed_factor = max(0.1, 1 - (RECOVERY_TIME - self.infection_timer) / RECOVERY_TIME)
-            self.move()  # **dodaj ovo! agent se kreće i kad je zaražen**
+            self.move() 
             self.infection_timer -= 1
             
-            # 30% šanse da se povuče u karantenu na početku infekcije
             if self.infection_timer == RECOVERY_TIME - 5 and random.random() < QUARANTINE_PROB:
                 self.state = QUARANTINED
             
@@ -93,8 +84,6 @@ class Agent:
                 self.speed_factor = 1.0  # reset
 
         elif self.state == QUARANTINED:
-            # Karantena traje do kraja infekcije
-            # kreće se sporo prema karanteni u move() pozivu (zapravo u update logici si to uredno odradio)
             self.infection_timer -= 1
             if self.infection_timer <= 0:
                 if np.random.rand() < DEATH_PROB:
@@ -103,13 +92,9 @@ class Agent:
                     self.state = RECOVERED
                 self.speed_factor = 1.0  # reset
 
-            # Karantena ima poseban move kod kojeg se polako giba prema karanteni,
-            # jer je u move() logici definirano za QUARANTINED state
-
             self.move()
 
         else:
-            # zdrav (susceptible ili recovered) ide normalno
             self.speed_factor = 1.0
             self.move()
 
@@ -145,20 +130,18 @@ legend_labels = {
     "Q": ax2.text(0.75, 0.75, "", transform=ax2.transAxes, color="orange"),
 }
 
-MAX_AGENTS = 500  # ili koliko hoćeš maksimalno, ili None za bez ograničenja
-NEW_INFECTED_EVERY = 50  # svakih 50 frameova dodaj novog INFECTED agenta
+MAX_AGENTS = 500  
+NEW_INFECTED_EVERY = 50  
 
 def animate(frame):
     positions = []
     colors = []
 
-    # 1. Update all agents
     for agent in agents:
         agent.update()
         positions.append(agent.pos)
         colors.append(STATE_COLORS[agent.state])
 
-    # 2. Infection logic (isto kao i prije)
     newly_infected = []
     for agent in agents:
         if agent.state in [INFECTED, QUARANTINED]:
@@ -175,25 +158,21 @@ def animate(frame):
     for agent in newly_infected:
         agent.infect()
 
-    # 3. Nova infekcija iz okoline (postojeći kod)
     if frame % NEW_INFECTION_EVERY == 0:
         candidates = [a for a in agents if a.state == SUSCEPTIBLE]
         if candidates:
             random.choice(candidates).infect()
 
-    # 4. Dodaj novog infected agenta svakih NEW_INFECTED_EVERY frameova
     if frame % NEW_INFECTED_EVERY == 0:
         if MAX_AGENTS is None or len(agents) < MAX_AGENTS:
             new_agent = Agent()
             new_agent.state = INFECTED
             new_agent.infection_timer = RECOVERY_TIME
             new_agent.is_super_spreader = (random.random() < 0.1)
-            # Stavi ga na random poziciju, random brzinu, odmah može širiti
             new_agent.pos = np.random.rand(2)
             new_agent.vel = (np.random.rand(2) - 0.5) * 0.02
             agents.append(new_agent)
 
-    # 5. Broji stanja
     counts = [0, 0, 0, 0, 0]
     for a in agents:
         counts[a.state] += 1
@@ -204,7 +183,6 @@ def animate(frame):
     history_D.append(counts[DEAD])
     history_Q.append(counts[QUARANTINED])
 
-    # 6. Update vizualizacije
     sc.set_offsets(np.array(positions))
     sc.set_color(colors)
     ax1.set_title(
@@ -220,7 +198,6 @@ def animate(frame):
 
     ax2.set_xlim(0, max(100, len(history_S)))
 
-    # Update legende
     state_map = {"S": SUSCEPTIBLE, "I": INFECTED, "R": RECOVERED, "D": DEAD, "Q": QUARANTINED}
     for key, label in legend_labels.items():
         label.set_text(f"{key}: {counts[state_map[key]]}")
@@ -231,7 +208,6 @@ ani = animation.FuncAnimation(fig, animate, frames=1000, interval=30, blit=True)
 plt.tight_layout()
 plt.show()
 
-# Export data
 with open("epidemic_data.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["Frame", "Susceptible", "Infected", "Recovered", "Dead", "Quarantined"])
